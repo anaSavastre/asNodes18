@@ -19,10 +19,13 @@
 #include <maya/MGlobal.h>
 #include <maya/MPointArray.h>
 #include <maya/MPlane.h>
+#include <maya/MFloatVectorArray.h>
+#include <math.h>
 
 
 // Attribute
 #include <maya/MFnNumericAttribute.h>
+#include <maya/MFnMatrixAttribute.h>
 
 
 class asSurfaceSliding : public MPxDeformerNode {
@@ -52,6 +55,11 @@ private:
 	static MObject as_tx;
 	static MObject as_ty;
 	static MObject as_tz;
+	static MObject as_inWorldMatrix;
+	static int as_restPoseEvaluated;
+	double clamp(double, double, double);
+	double smoothStep(double, double, double);
+
 
 	// OUTPUT TRANSFORMATION
 	static MObject as_outTranslation;

@@ -10,6 +10,7 @@ MObject asMatloft::as_inRevolveZ;
 MObject asMatloft::as_inRevolveNegativeX;
 MObject asMatloft::as_inRevolveNegativeY;
 MObject asMatloft::as_inRevolveNegativeZ;
+MObject asMatloft::as_spams; 
 
 MObject asMatloft::as_outSurface;
 
@@ -21,6 +22,8 @@ MStatus asMatloft::compute(const MPlug& pPlug, MDataBlock& pDataBlock)
 	if (pPlug == as_outSurface)
 	{
 		MArrayDataHandle inMatrixArray = pDataBlock.inputArrayValue(as_inWorldMatrix, &stat);
+		// int Spams
+		int spams = pDataBlock.inputValue(as_spams).asInt();
 		//bool inPercentage = pDataBlock.inputValue(m_percentage).asBool();
 		bool revolveX = pDataBlock.inputValue(as_inRevolveX).asBool();
 		bool revolveY = pDataBlock.inputValue(as_inRevolveY).asBool();
@@ -29,7 +32,7 @@ MStatus asMatloft::compute(const MPlug& pPlug, MDataBlock& pDataBlock)
 		bool revolveNegativeY = pDataBlock.inputValue(as_inRevolveNegativeY).asBool();
 		bool revolveNegativeZ = pDataBlock.inputValue(as_inRevolveNegativeZ).asBool();
 		MFnNurbsSurfaceData surfaceData;
-		MObject newSurfaceData = surfaceData.create(&stat);// = 
+		MObject newSurfaceData = surfaceData.create(&stat);
 		matloft(inMatrixArray, newSurfaceData, stat, revolveX, revolveY, revolveZ, revolveNegativeX, revolveNegativeY, revolveNegativeZ);
 		
 		if (!stat)
@@ -54,7 +57,9 @@ MStatus asMatloft::nodeInitializer()
 	matrixAttributeFN.setArray(true);
 	addAttribute(as_inWorldMatrix);
 
-
+	// Attribute: spams
+	as_spams = numericAttributeFN.create("spams", "spams", MFnNumericData::kInt);
+	addAttribute(as_spams);
 	// Attribute: inRevolveX
 	as_inRevolveX = numericAttributeFN.create("revolveX", "rX", MFnNumericData::kBoolean);
 	addAttribute(as_inRevolveX);
@@ -80,6 +85,7 @@ MStatus asMatloft::nodeInitializer()
 
 	// Attribute Affects
 	attributeAffects(as_inWorldMatrix, as_outSurface);
+	attributeAffects(as_spams, as_outSurface);
 	attributeAffects(as_inRevolveX, as_outSurface);
 	attributeAffects(as_inRevolveY, as_outSurface);
 	attributeAffects(as_inRevolveZ, as_outSurface);
@@ -101,9 +107,9 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 	if (numbElements < 1)
 		return MObject::kNullObj;
 	points = getPointsFromMatrice(inMatrixArray, stat);
-	int spansU = numbElements;
+	int spansU = numbElements-1;
 	int knots = spansU + 2 * 3 - 1;
-
+	cerr << "spams: " << spansU << "\n";
 	// Get CV locations
 
 	// CREATING KNOT ARRAY
@@ -123,43 +129,8 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 
 	// CREATING CVs ARRAY
 	
-	for (i = 0; i < spansU+1; i++)
+	for (i = 0; i <  spansU+3; i++)
 	{
-		if (i == spansU)
-		{
-			for (float j = -0.5; j < 0.5; j += 0.33)
-			{
-
-				MPoint point = points[i]-MPoint(0.333, 0.0, 0.0);
-				//cerr << "point: " << point.x <<" "<< point.y << " " << point.z << "\n";
-				if (revX)
-				{
-					point.x += (double)j;
-				}
-				if (revY)
-				{
-					point.y += (double)j;
-				}
-				if (revZ)
-				{
-					point.z += (double)j;
-				}
-				if (revNegativeX)
-				{
-					point.x -= (double)j;
-				}
-				if (revNegativeY)
-				{
-					point.y -= (double)j;
-				}
-				if (revNegativeZ)
-				{
-					point.z -= (double)j;
-				}
-				cvs.append(point);
-			}
-
-		}
 		
 		for (float j =- 0.5; j < 0.5; j+=0.33)
 		{
@@ -191,50 +162,14 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 			}
 			cvs.append(point);
 		}
-		if (i == 0)
-		{
-			for (float j = -0.5; j < 0.5; j += 0.33)
-			{
-
-				MPoint point = points[i] + MPoint(0.333, 0.0, 0.0);
-				//cerr << "point: " << point.x <<" "<< point.y << " " << point.z << "\n";
-				if (revX)
-				{
-					point.x += (double)j;
-				}
-				if (revY)
-				{
-					point.y += (double)j;
-				}
-				if (revZ)
-				{
-					point.z += (double)j;
-				}
-				if (revNegativeX)
-				{
-					point.x -= (double)j;
-				}
-				if (revNegativeY)
-				{
-					point.y -= (double)j;
-				}
-				if (revNegativeZ)
-				{
-					point.z -= (double)j;
-				}
-				cvs.append(point);
-			}
-
-		}
 		
-
 	}
 	int len = cvs.length();
 
 	double surfaceLength = cvs[len - 1].x - cvs[0].x;
-	//cerr << "knotsU array length: " << knotsU.length() << "\n";
-	//cerr << "knorsV array length: " << knotsV.length() << "\n";
-	//cerr << "cvs array length: " << len << "\n";
+	cerr << "knotsU array length: " << knotsU.length() << "\n";
+	cerr << "knorsV array length: " << knotsV.length() << "\n";
+	cerr << "cvs array length: " << len << "\n";
 
 
 	returnSurface = surfFn.create(cvs, knotsU, knotsV, 3, 3,
@@ -242,7 +177,7 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 		false, surfaceObj, &stat);
 	if (stat != MS::kSuccess)
 	{
-		//cerr << "Error in creating surface: " << stat << "\n";
+		cerr << "Error in creating surface: " << stat << "\n";
 		return MObject::kNullObj;
 	}
 	return returnSurface;

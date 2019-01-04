@@ -44,6 +44,7 @@ private:
 	static MObject as_inRevolveX;
 	static MObject as_inRevolveY;
 	static MObject as_inRevolveZ;
+	static MObject as_spams;
 
 	static MObject as_inRevolveNegativeX;
 	static MObject as_inRevolveNegativeY;

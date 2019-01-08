@@ -51,6 +51,7 @@ private:
 	static MObject as_vertexHandle;
 	static MObject as_radius;
 	static MObject as_displacement;
+	static MObject as_elasticity;
 	static MObject as_transformation;
 	static MObject as_tx;
 	static MObject as_ty;

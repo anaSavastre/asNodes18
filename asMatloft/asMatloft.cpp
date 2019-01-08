@@ -107,7 +107,7 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 	if (numbElements < 1)
 		return MObject::kNullObj;
 	points = getPointsFromMatrice(inMatrixArray, stat);
-	int spansU = numbElements-1;
+	int spansU = numbElements-2;
 	int knots = spansU + 2 * 3 - 1;
 	cerr << "spams: " << spansU << "\n";
 	// Get CV locations
@@ -116,10 +116,10 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 	// U dimension: numb of element triple knoted 
 	for (i = 0; i < 3; i++)
 		knotsU.append(0.0);
-	for (i = 1; i <= knots - 6; i++)
+	for (i = 1; i < spansU; i++)
 		knotsU.append((double)i);
 	for (i = 0; i < 3; i++)
-		knotsU.append((double)knots - 6 + 1 );
+		knotsU.append((double)spansU );
 	// V dimension 
 	for (i = 0; i < 3; i++)
 		knotsV.append(0.0);

@@ -6,6 +6,8 @@ MTypeId asSurfaceSliding::as_id(0x09465);
 MObject asSurfaceSliding::as_vertexHandle;
 MObject asSurfaceSliding::as_radius;
 MObject asSurfaceSliding::as_displacement;
+MObject asSurfaceSliding::as_elasticity;
+
 MObject asSurfaceSliding::as_transformation;
 MObject asSurfaceSliding::as_tx;
 MObject asSurfaceSliding::as_ty;
@@ -31,6 +33,7 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	float inputEnvelope = envData.asFloat();
 	int vertexHandle = pDataBlock.inputValue(as_vertexHandle, &status).asInt();
 	float radius = pDataBlock.inputValue(as_radius, &status).asFloat();
+	float elasticity = pDataBlock.inputValue(as_elasticity, &status).asFloat();
 	float displacement = pDataBlock.inputValue(as_displacement, &status).asFloat();
 	MVector inTransformation = pDataBlock.inputValue(as_transformation).asVector();
 	MVector startPose, dTransform;
@@ -41,32 +44,89 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	MArrayDataHandle inputMeshHandle = pDataBlock.outputArrayValue(input, &status);
 	inputMeshHandle.jumpToElement(0);
 	MDataHandle inputMeshElementHandle = inputMeshHandle.outputValue(&status);
-	MDataHandle inputMeshGeomHandle = inputMeshElementHandle.child(inputGeom);
+	MDataHandle inputMeshGeomHandle = inputMeshElementHandle.child(outputGeom);
 	MObject inputMeshObj = inputMeshGeomHandle.data();
 	MFnMesh fnInputMesh(inputMeshObj, &status);
-	   
-	// Output Mesh
-	// MArrayDataHandle outputMeshHandle = pDataBlock.outputArrayValue(output, )
 
 	// GET MESH POINTS
 	MPointArray meshVertex;
-	fnInputMesh.getPoints(meshVertex, MSpace::kWorld);
+	fnInputMesh.getPoints(meshVertex, MSpace::kObject);
+	MVectorArray vertexForce(meshVertex.length());
 
+
+	// SIMULATION VARIABLES
+	//MVectorArray velocity(meshVertex.length());
+	//MVectorArray currentPosition(meshVertex.length()), prevPosition(meshVertex.length()), predictedVtx(meshVertex.length());
+	//static int timeStep=0;
+
+
+	// EDGE LENGTH
+	int numEdges = fnInputMesh.numEdges();
+	//static MDoubleArray restEdgeLength(numEdges, 0.0), currentEdgeLength(numEdges, 0.0);
 
 	// INITIALIZATION STAGE
+	//cerr << "printTest\n";
 	if (as_restPoseEvaluated == 0)
 	{
 		as_restPoseEvaluated = 1;
 		startPose = inTransformation;
 
-	}
-	dTransform = inTransformation - startPose;
-	dTransform = meshVertex[vertexHandle] + dTransform;
+		// GETTING REST EDGE LENGTH
+		/*for (int i = 0; i < numEdges; i++)
+		{
+			// GET VERT ID FOR EDGE I
+			int2 vertID;
+			fnInputMesh.getEdgeVertices(i, vertID);
+			restEdgeLength[i] = meshVertex[vertID[1]].distanceTo(meshVertex[vertID[0]]);
+		}*/
+		/*for (int i = 0; i < meshVertex.length(); i++)
+		{
+			prevPosition[i] = MVector(meshVertex[i]);
+		}
+		*/
 
+
+	}
+	
+	// Calculating predicted vtx Position
+	/*for (int i = 0; i < meshVertex.length(); i++)
+	{
+		velocity[i].x = currentPosition[i].x - prevPosition[i].x;
+		velocity[i].y = currentPosition[i].y - prevPosition[i].y;
+		velocity[i].z = currentPosition[i].z - prevPosition[i].z;
+
+		//velocity[i] = velocity[i] * (time.asUnits(MTime::k25FPS) - prevTime.asUnits(MTime::k25FPS));
+		predictedVtx[i] = currentPosition[i] + velocity[i] * timeStep;
+
+	}*/
+	// GETTING CURRENT EDGE LENGTH
+
+	/*for (int i = 0; i < numEdges; i++)
+	{
+		// GET VERT ID FOR EDGE I
+		int2 vertID;
+		fnInputMesh.getEdgeVertices(i, vertID);
+		currentEdgeLength[i] = meshVertex[vertID[1]].distanceTo(meshVertex[vertID[0]]);
+		if (currentEdgeLength[i] != restEdgeLength[i])
+		{
+			double deltaLen = currentEdgeLength[i] - restEdgeLength[i];
+			double elasticForce = elasticity * deltaLen;
+			MVector direction = meshVertex[vertID[0]] - meshVertex[vertID[1]];
+			//direction = predictedVtx[vertID[0]] - direction;
+			vertexForce[vertID[1]] += direction.normal()*elasticForce;
+			direction = meshVertex[vertID[1]] - meshVertex[vertID[0]];
+			//direction = predictedVtx[vertID[1]] - direction;
+			vertexForce[vertID[0]] += direction.normal()*elasticForce;
+			//cerr << "differenceFound"<<i<<"\n";
+		}
+	}*/
+	
+
+	
 	// CREATE PLANE 
 	// Normals
 	MFloatVectorArray uTangents, vTangents, vertexNormals;
-	status = fnInputMesh.getVertexNormals(true, vertexNormals, MSpace::kWorld);
+	status = fnInputMesh.getVertexNormals(true, vertexNormals, MSpace::kObject);
 	if (!status)
 	{
 		MGlobal::displayError("Failed to get narmals");
@@ -97,9 +157,10 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	}
 
 	// GET TRANSFORM PROJECTION ON SURFACE
-	//MMeshIntersector meshIntresection;
-    //status = meshIntresection.create(inputMeshObj, pMatrix);
-	//MVector projectionOnMesh;
+	dTransform = inTransformation - startPose;
+	dTransform = meshVertex[vertexHandle] + dTransform;
+
+
 	// Calculate displacement for vtxHandle
 	double mp, d, uCoef, vCoef;
 	mp = dTransform * vertexNormals[vertexHandle];
@@ -107,34 +168,6 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	MVector qPositionVect, displaceVect;
 	qPositionVect = dTransform + (d - mp)*vertexNormals[vertexHandle];
 	displaceVect = qPositionVect - meshVertex[vertexHandle];
-
-
-
-
-	/*float u, v;
-	if (status)
-	{
-		// Intersection Point
-		MPointOnMesh pointOnMesh;
-		status = meshIntresection.getClosestPoint(MPoint(inTransformation), pointOnMesh);
-		if (status)
-		{
-			// GET VECT(vtxHandle, projectionPoint)
-			projectionOnMesh = pointOnMesh.getPoint();
-			pointOnMesh.getBarycentricCoords(u, v);
-			
-		}
-		else
-		{
-			MGlobal::displayError("Failed to get closest point");
-
-		}
-	}
-	else
-	{
-		MGlobal::displayError("Failed to create intersector");
-	}*/
-
 	
 	// Get transformation on u and v tangents
 	// Apply transformations to vtxHandle
@@ -143,8 +176,11 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	{
 		// GETTING WEIGHTS
 		float weight = weightValue(pDataBlock, intGeometryIndex, pGeoIterator.index());
-		MPoint pointPosition = pGeoIterator.position(MSpace::kWorld);
+		MPoint pointPosition = pGeoIterator.position(MSpace::kObject);
 		float weightVal = 0.1;
+		//if (pGeoIterator.index()!=vertexHandle)
+			//pointPosition += vertexForce[pGeoIterator.index()] * inputEnvelope;
+
 		if (pointPosition.distanceTo(meshVertex[vertexHandle]) <= radius)
 		{
 			double falloff;
@@ -155,7 +191,7 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 
 			vCoef = displaceVect.length()*cos(displaceVect.angle(vTangents[pGeoIterator.index()]));
 			//pointPosition += MPoint(displaceVect) + (pointPosition-meshVertex[vertexHandle]);
-			pointPosition +=  ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff;
+			pointPosition +=  ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope;
 
 		}
 		deformedPointArray.append(pointPosition);
@@ -163,6 +199,11 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 
 
 	pGeoIterator.setAllPositions(deformedPointArray);
+
+	// UPDATING SIMULATION
+	//prevPosition = predictedVtx;
+
+	
 
 
 
@@ -206,6 +247,11 @@ MStatus asSurfaceSliding::nodeInitializer()
 	//numericAttributeFn.setMax(10.0);
 	numericAttributeFn.setKeyable(1);
 	addAttribute(as_radius);
+	// Elasticuty
+	as_elasticity = numericAttributeFn.create("elasticity", "elasticity", MFnNumericData::kFloat, 0);
+	numericAttributeFn.setMin(0.0);
+	numericAttributeFn.setKeyable(1);
+	addAttribute(as_elasticity);
 	// Displacement
 	as_displacement = numericAttributeFn.create("displacement", "disp", MFnNumericData::kFloat, 0);
 	numericAttributeFn.setMin(0.0);
@@ -233,6 +279,7 @@ MStatus asSurfaceSliding::nodeInitializer()
 	// ATTRIBUTE AFFECTS
 	attributeAffects(as_vertexHandle, outputGeom);
 	attributeAffects(as_radius, outputGeom);
+	attributeAffects(as_elasticity, outputGeom);
 	attributeAffects(as_displacement, outputGeom);
 	attributeAffects(as_transformation, outputGeom);
 	return MStatus::kSuccess;

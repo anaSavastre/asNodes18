@@ -109,7 +109,7 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 	points = getPointsFromMatrice(inMatrixArray, stat);
 	int spansU = numbElements-2;
 	int knots = spansU + 2 * 3 - 1;
-	cerr << "spams: " << spansU << "\n";
+	//cerr << "spams: " << spansU << "\n";
 	// Get CV locations
 
 	// CREATING KNOT ARRAY
@@ -167,9 +167,9 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 	int len = cvs.length();
 
 	double surfaceLength = cvs[len - 1].x - cvs[0].x;
-	cerr << "knotsU array length: " << knotsU.length() << "\n";
-	cerr << "knorsV array length: " << knotsV.length() << "\n";
-	cerr << "cvs array length: " << len << "\n";
+	//cerr << "knotsU array length: " << knotsU.length() << "\n";
+	//cerr << "knorsV array length: " << knotsV.length() << "\n";
+	//cerr << "cvs array length: " << len << "\n";
 
 
 	returnSurface = surfFn.create(cvs, knotsU, knotsV, 3, 3,

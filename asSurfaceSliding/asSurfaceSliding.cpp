@@ -48,81 +48,60 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	MObject inputMeshObj = inputMeshGeomHandle.data();
 	MFnMesh fnInputMesh(inputMeshObj, &status);
 
+	// EDGE LENGTH
+	int numEdges = fnInputMesh.numEdges();
+	static MDoubleArray restEdgeLength(numEdges, 0.0), currentEdgeLength(numEdges, 0.0);
+		   
+	// Output Mesh
+	// MArrayDataHandle outputMeshHandle = pDataBlock.outputArrayValue(output, )
+
 	// GET MESH POINTS
 	MPointArray meshVertex;
 	fnInputMesh.getPoints(meshVertex, MSpace::kObject);
 	MVectorArray vertexForce(meshVertex.length());
-
-
-	// SIMULATION VARIABLES
-	//MVectorArray velocity(meshVertex.length());
-	//MVectorArray currentPosition(meshVertex.length()), prevPosition(meshVertex.length()), predictedVtx(meshVertex.length());
-	//static int timeStep=0;
-
-
-	// EDGE LENGTH
-	int numEdges = fnInputMesh.numEdges();
-	//static MDoubleArray restEdgeLength(numEdges, 0.0), currentEdgeLength(numEdges, 0.0);
+	int numVertex = meshVertex.length();
+	MVectorArray restVertexArray(numVertex);
+	static MVectorArray previousVertexArray(numVertex);
 
 	// INITIALIZATION STAGE
 	//cerr << "printTest\n";
 	if (as_restPoseEvaluated == 0)
 	{
+		//cerr << "initialization stage\n";
 		as_restPoseEvaluated = 1;
 		startPose = inTransformation;
 
 		// GETTING REST EDGE LENGTH
-		/*for (int i = 0; i < numEdges; i++)
+		for (int i = 0; i < numEdges; i++)
 		{
 			// GET VERT ID FOR EDGE I
 			int2 vertID;
 			fnInputMesh.getEdgeVertices(i, vertID);
 			restEdgeLength[i] = meshVertex[vertID[1]].distanceTo(meshVertex[vertID[0]]);
-		}*/
-		/*for (int i = 0; i < meshVertex.length(); i++)
-		{
-			prevPosition[i] = MVector(meshVertex[i]);
 		}
-		*/
+		// GETTING REST VERTEX
+		for (int i = 0; i < numVertex; i++)
+		{
+			restVertexArray[i] = meshVertex[i];
+			
+			previousVertexArray[i] = meshVertex[i];
+			//cerr << "initializarion Prev: " << previousVertexArray[i].x << " " << previousVertexArray[i].y << " " << previousVertexArray[i].z << " \n";
+		}
+		// RECOMPUTE NEIGHBOURS
+		// SETTING NEIGHTBOURING RAD TO 50
+		int neighbouringRad = 50;
+		for (int i = 0; i <= numVertex; i++)
+		{
 
+		}
+
+		
 
 	}
-	
-	// Calculating predicted vtx Position
-	/*for (int i = 0; i < meshVertex.length(); i++)
-	{
-		velocity[i].x = currentPosition[i].x - prevPosition[i].x;
-		velocity[i].y = currentPosition[i].y - prevPosition[i].y;
-		velocity[i].z = currentPosition[i].z - prevPosition[i].z;
 
-		//velocity[i] = velocity[i] * (time.asUnits(MTime::k25FPS) - prevTime.asUnits(MTime::k25FPS));
-		predictedVtx[i] = currentPosition[i] + velocity[i] * timeStep;
+	dTransform = inTransformation - startPose;
+	dTransform = meshVertex[vertexHandle] + dTransform;
 
-	}*/
-	// GETTING CURRENT EDGE LENGTH
-
-	/*for (int i = 0; i < numEdges; i++)
-	{
-		// GET VERT ID FOR EDGE I
-		int2 vertID;
-		fnInputMesh.getEdgeVertices(i, vertID);
-		currentEdgeLength[i] = meshVertex[vertID[1]].distanceTo(meshVertex[vertID[0]]);
-		if (currentEdgeLength[i] != restEdgeLength[i])
-		{
-			double deltaLen = currentEdgeLength[i] - restEdgeLength[i];
-			double elasticForce = elasticity * deltaLen;
-			MVector direction = meshVertex[vertID[0]] - meshVertex[vertID[1]];
-			//direction = predictedVtx[vertID[0]] - direction;
-			vertexForce[vertID[1]] += direction.normal()*elasticForce;
-			direction = meshVertex[vertID[1]] - meshVertex[vertID[0]];
-			//direction = predictedVtx[vertID[1]] - direction;
-			vertexForce[vertID[0]] += direction.normal()*elasticForce;
-			//cerr << "differenceFound"<<i<<"\n";
-		}
-	}*/
-	
-
-	
 	// CREATE PLANE 
 	// Normals
 	MFloatVectorArray uTangents, vTangents, vertexNormals;
@@ -133,10 +112,6 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 		return MStatus::kFailure;
 
 	}
-	// U Tangents
-	//status = fnInputMesh.getTangents(uTangents, MSpace::kObject);
-	//status = fnInputMesh.getNormals(uTangents, MSpace::kObject);
-
 	if (!status)
 	{
 		MGlobal::displayError("Failed to get u Tangents");
@@ -144,31 +119,101 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 
 	}
 	
-	// V Tangents
+	// U and V Tangents
 	for (unsigned int i = 0; i < vertexNormals.length(); i++)
 	{
-		//Rotation about x axis
-		uTangents.append(vertexNormals[i]);
-		double aux;
-		aux = uTangents[i].y;
-		uTangents[i].y = -uTangents[i].z;
-		uTangents[i].z = aux;
+		// Calculating u tangent
+		MVector tg1 = vertexNormals[i] ^ MVector(0, 1, 0);
+		MVector tg2 = vertexNormals[i] ^ MVector(0, 0, 1);
+		// Checking if the normal is different than the arbitray chosen vects
+		if (tg1 != MVector(0, 0, 0))
+		{
+			uTangents.append(tg1);
+		}
+		else
+		{
+			uTangents.append(tg2);
+		}
+
 		vTangents.append(vertexNormals[i] ^ uTangents[i]);
 	}
 
+	/*// MAKING SIMULATION FOR VTX 4915
+	int simVert = 4915;
+	MVector vertexTransformation;
+
+	// GET THE DIFFERENCE IN TRANSLATION
+
+	MVector qPositionVect, vertDisplacement;
+	if (previousVertexArray[simVert] != meshVertex[simVert])
+	{
+		cerr << "position Difference found\n";
+		cerr << "prev: " << previousVertexArray[simVert].x << " " << previousVertexArray[simVert].y << " " << previousVertexArray[simVert].z << "  \n";
+		cerr << "now: " << meshVertex[simVert].x << " " << meshVertex[simVert].y << " " << meshVertex[simVert].z << "  \n";
+
+		vertexTransformation = meshVertex[simVert] - previousVertexArray[simVert];
+		// Calculate displacement for vtxHandle
+		double mp, d;
+		mp = vertexTransformation * vertexNormals[simVert];
+		d = MVector(meshVertex[simVert]) * vertexNormals[simVert];
+
+		qPositionVect = vertexTransformation + (d - mp)*vertexNormals[simVert];
+		vertDisplacement = qPositionVect - meshVertex[simVert];
+
+	}
+	// UPDATE PREV VTX
+	previousVertexArray[simVert] = meshVertex[simVert];
+	*/
+
 	// GET TRANSFORM PROJECTION ON SURFACE
-	dTransform = inTransformation - startPose;
-	dTransform = meshVertex[vertexHandle] + dTransform;
-
-
+	//MMeshIntersector meshIntresection;
+    //status = meshIntresection.create(inputMeshObj, pMatrix);
+	//MVector projectionOnMesh;
 	// Calculate displacement for vtxHandle
 	double mp, d, uCoef, vCoef;
 	mp = dTransform * vertexNormals[vertexHandle];
 	d = MVector(meshVertex[vertexHandle]) * vertexNormals[vertexHandle];
-	MVector qPositionVect, displaceVect;
+	//MVector qPositionVect, displaceVect;
+	MVector displaceVect, qPositionVect;
+
 	qPositionVect = dTransform + (d - mp)*vertexNormals[vertexHandle];
 	displaceVect = qPositionVect - meshVertex[vertexHandle];
 	
+	// SKIN SLIDING
+	// GETTING CURRENT EDGE LENGTH
+	//cerr << "numEdges: " << numEdges<<"\n";
+	for (int i = 0; i < numEdges; i++)
+	{
+		// GET VERT ID FOR EDGE I
+		int2 vertID;
+		fnInputMesh.getEdgeVertices(i, vertID);
+		currentEdgeLength[i] = meshVertex[vertID[1]].distanceTo(meshVertex[vertID[0]]);
+		if (currentEdgeLength[i] != restEdgeLength[i])
+		{
+			double deltaLen = currentEdgeLength[i] - restEdgeLength[i];
+			double elasticForce = elasticity * deltaLen;
+			MVector direction;
+
+			// CHECKING WHICH VERTEX HAS BEEN MANIPULATED
+			if (meshVertex[vertID[0]].distanceTo(restVertexArray[vertID[0]]) > meshVertex[vertID[1]].distanceTo(restVertexArray[vertID[1]]))
+			{
+				direction = meshVertex[vertID[1]] - meshVertex[vertID[0]];
+				vertexForce[vertID[0]] += direction.normal()*elasticForce;				
+
+			}
+			if (meshVertex[vertID[0]].distanceTo(restVertexArray[vertID[0]]) <= meshVertex[vertID[1]].distanceTo(restVertexArray[vertID[1]]))
+			{
+				direction = meshVertex[vertID[0]] - meshVertex[vertID[1]];
+				vertexForce[vertID[1]] += direction.normal()*elasticForce;
+		
+
+			}
+
+		}
+	}
+	//cerr << "rest pose lenght edge 811: " << restEdgeLength[811]<<"\n";
+	//cerr << "current pose lenght edge 811: " << currentEdgeLength[811] << "\n";
+
 	// Get transformation on u and v tangents
 	// Apply transformations to vtxHandle
 
@@ -179,7 +224,7 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 		MPoint pointPosition = pGeoIterator.position(MSpace::kObject);
 		float weightVal = 0.1;
 		//if (pGeoIterator.index()!=vertexHandle)
-			//pointPosition += vertexForce[pGeoIterator.index()] * inputEnvelope;
+		pointPosition += vertexForce[pGeoIterator.index()] * inputEnvelope;
 
 		if (pointPosition.distanceTo(meshVertex[vertexHandle]) <= radius)
 		{
@@ -191,18 +236,28 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 
 			vCoef = displaceVect.length()*cos(displaceVect.angle(vTangents[pGeoIterator.index()]));
 			//pointPosition += MPoint(displaceVect) + (pointPosition-meshVertex[vertexHandle]);
-			pointPosition +=  ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope;
+			pointPosition +=  ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope*displacement;
 
 		}
+
+		/*if (pointPosition.distanceTo(meshVertex[simVert]) <= radius)// && pGeoIterator.index()!=simVert)
+		{
+			double falloff;
+			falloff = smoothStep(pointPosition.distanceTo(meshVertex[simVert]), 0.0, radius);
+			// GET U AND V COMPONENTS
+			// POJECT DISPLACEMENT VECT ON U AND V
+			uCoef = -vertDisplacement.length()*cos(vertDisplacement.angle(uTangents[pGeoIterator.index()]));
+
+			vCoef = -vertDisplacement.length()*cos(vertDisplacement.angle(vTangents[pGeoIterator.index()]));
+			//pointPosition += MPoint(displaceVect) + (pointPosition-meshVertex[vertexHandle]);
+			pointPosition += ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope*0.1;
+
+		}*/
 		deformedPointArray.append(pointPosition);
 	}
 
 
 	pGeoIterator.setAllPositions(deformedPointArray);
-
-	// UPDATING SIMULATION
-	//prevPosition = predictedVtx;
-
 	
 
 
@@ -250,10 +305,11 @@ MStatus asSurfaceSliding::nodeInitializer()
 	// Elasticuty
 	as_elasticity = numericAttributeFn.create("elasticity", "elasticity", MFnNumericData::kFloat, 0);
 	numericAttributeFn.setMin(0.0);
+	numericAttributeFn.setMax(1.0);
 	numericAttributeFn.setKeyable(1);
 	addAttribute(as_elasticity);
 	// Displacement
-	as_displacement = numericAttributeFn.create("displacement", "disp", MFnNumericData::kFloat, 0);
+	as_displacement = numericAttributeFn.create("displacement", "disp", MFnNumericData::kFloat, 1);
 	numericAttributeFn.setMin(0.0);
 	numericAttributeFn.setMax(10.0);
 	numericAttributeFn.setKeyable(1);

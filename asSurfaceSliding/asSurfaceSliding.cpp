@@ -15,12 +15,6 @@ MObject asSurfaceSliding::as_tz;
 int asSurfaceSliding::as_restPoseEvaluated;
 
 
-
-MObject asSurfaceSliding::as_outTranslation;
-MObject asSurfaceSliding::as_outTx;
-MObject asSurfaceSliding::as_outTy;
-MObject asSurfaceSliding::as_outTz;
-
 void* asSurfaceSliding::nodeCreator() { return new asSurfaceSliding; }
 
 MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterator, const MMatrix& pMatrix, unsigned int intGeometryIndex)
@@ -52,9 +46,6 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	int numEdges = fnInputMesh.numEdges();
 	static MDoubleArray restEdgeLength(numEdges, 0.0), currentEdgeLength(numEdges, 0.0);
 		   
-	// Output Mesh
-	// MArrayDataHandle outputMeshHandle = pDataBlock.outputArrayValue(output, )
-
 	// GET MESH POINTS
 	MPointArray meshVertex;
 	fnInputMesh.getPoints(meshVertex, MSpace::kObject);
@@ -64,10 +55,8 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 	static MVectorArray previousVertexArray(numVertex);
 
 	// INITIALIZATION STAGE
-	//cerr << "printTest\n";
 	if (as_restPoseEvaluated == 0)
 	{
-		//cerr << "initialization stage\n";
 		as_restPoseEvaluated = 1;
 		startPose = inTransformation;
 
@@ -85,40 +74,22 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 			restVertexArray[i] = meshVertex[i];
 			
 			previousVertexArray[i] = meshVertex[i];
-			//cerr << "initializarion Prev: " << previousVertexArray[i].x << " " << previousVertexArray[i].y << " " << previousVertexArray[i].z << " \n";
 		}
-		// RECOMPUTE NEIGHBOURS
-		// SETTING NEIGHTBOURING RAD TO 50
-		int neighbouringRad = 50;
-		for (int i = 0; i <= numVertex; i++)
-		{
-
-		}
-
-		
+		// GET NEIBOURING POINTS		
 
 	}
 
-	dTransform = inTransformation - startPose;
-	dTransform = meshVertex[vertexHandle] + dTransform;
-
-	// CREATE PLANE 
+	// GET POINT TANGENTS
 	// Normals
 	MFloatVectorArray uTangents, vTangents, vertexNormals;
 	status = fnInputMesh.getVertexNormals(true, vertexNormals, MSpace::kObject);
 	if (!status)
 	{
-		MGlobal::displayError("Failed to get narmals");
+		MGlobal::displayError("Failed to get normals");
 		return MStatus::kFailure;
 
 	}
-	if (!status)
-	{
-		MGlobal::displayError("Failed to get u Tangents");
-		return MStatus::kFailure;
-
-	}
-	
+		
 	// U and V Tangents
 	for (unsigned int i = 0; i < vertexNormals.length(); i++)
 	{
@@ -138,50 +109,14 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 		vTangents.append(vertexNormals[i] ^ uTangents[i]);
 	}
 
-	/*// MAKING SIMULATION FOR VTX 4915
-	int simVert = 4915;
-	MVector vertexTransformation;
-
-	// GET THE DIFFERENCE IN TRANSLATION
-
-	MVector qPositionVect, vertDisplacement;
-	if (previousVertexArray[simVert] != meshVertex[simVert])
-	{
-		cerr << "position Difference found\n";
-		cerr << "prev: " << previousVertexArray[simVert].x << " " << previousVertexArray[simVert].y << " " << previousVertexArray[simVert].z << "  \n";
-		cerr << "now: " << meshVertex[simVert].x << " " << meshVertex[simVert].y << " " << meshVertex[simVert].z << "  \n";
-
-		vertexTransformation = meshVertex[simVert] - previousVertexArray[simVert];
-		// Calculate displacement for vtxHandle
-		double mp, d;
-		mp = vertexTransformation * vertexNormals[simVert];
-		d = MVector(meshVertex[simVert]) * vertexNormals[simVert];
-
-		qPositionVect = vertexTransformation + (d - mp)*vertexNormals[simVert];
-		vertDisplacement = qPositionVect - meshVertex[simVert];
-
-	}
-	// UPDATE PREV VTX
-	previousVertexArray[simVert] = meshVertex[simVert];
-	*/
-
 	// GET TRANSFORM PROJECTION ON SURFACE
-	//MMeshIntersector meshIntresection;
-    //status = meshIntresection.create(inputMeshObj, pMatrix);
-	//MVector projectionOnMesh;
 	// Calculate displacement for vtxHandle
-	double mp, d, uCoef, vCoef;
-	mp = dTransform * vertexNormals[vertexHandle];
-	d = MVector(meshVertex[vertexHandle]) * vertexNormals[vertexHandle];
-	//MVector qPositionVect, displaceVect;
-	MVector displaceVect, qPositionVect;
 
-	qPositionVect = dTransform + (d - mp)*vertexNormals[vertexHandle];
-	displaceVect = qPositionVect - meshVertex[vertexHandle];
-	
+	MVector displaceVect = displacementVector(startPose, inTransformation, meshVertex[vertexHandle], vertexNormals[vertexHandle]);
+
+
 	// SKIN SLIDING
 	// GETTING CURRENT EDGE LENGTH
-	//cerr << "numEdges: " << numEdges<<"\n";
 	for (int i = 0; i < numEdges; i++)
 	{
 		// GET VERT ID FOR EDGE I
@@ -211,9 +146,7 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 
 		}
 	}
-	//cerr << "rest pose lenght edge 811: " << restEdgeLength[811]<<"\n";
-	//cerr << "current pose lenght edge 811: " << currentEdgeLength[811] << "\n";
-
+	
 	// Get transformation on u and v tangents
 	// Apply transformations to vtxHandle
 
@@ -228,7 +161,7 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 
 		if (pointPosition.distanceTo(meshVertex[vertexHandle]) <= radius)
 		{
-			double falloff;
+			double falloff, uCoef, vCoef;
 			falloff = smoothStep(pointPosition.distanceTo(meshVertex[vertexHandle]), 0.0, radius);
 			// GET U AND V COMPONENTS
 			// POJECT DISPLACEMENT VECT ON U AND V
@@ -240,34 +173,13 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 
 		}
 
-		/*if (pointPosition.distanceTo(meshVertex[simVert]) <= radius)// && pGeoIterator.index()!=simVert)
-		{
-			double falloff;
-			falloff = smoothStep(pointPosition.distanceTo(meshVertex[simVert]), 0.0, radius);
-			// GET U AND V COMPONENTS
-			// POJECT DISPLACEMENT VECT ON U AND V
-			uCoef = -vertDisplacement.length()*cos(vertDisplacement.angle(uTangents[pGeoIterator.index()]));
-
-			vCoef = -vertDisplacement.length()*cos(vertDisplacement.angle(vTangents[pGeoIterator.index()]));
-			//pointPosition += MPoint(displaceVect) + (pointPosition-meshVertex[vertexHandle]);
-			pointPosition += ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope*0.1;
-
-		}*/
 		deformedPointArray.append(pointPosition);
 	}
 
 
 	pGeoIterator.setAllPositions(deformedPointArray);
+	fnInputMesh.setPoints(deformedPointArray);
 	
-
-
-
-	//OUTPUTS
-	//Translation Handle
-	/*outTranslationHandle = pDataBlock.outputValue(as_outTranslation);
-	outTranslationHandle.setMVector(outTranslation);
-	outTranslationHandle.setClean();
-	*/
 
 	return MStatus::kSuccess;
 }
@@ -321,17 +233,7 @@ MStatus asSurfaceSliding::nodeInitializer()
 	
 	as_transformation = numericAttributeFn.create("translate", "translate", as_tx, as_ty, as_tz);
 	addAttribute(as_transformation);
-	// OUTPUTS	
-	// outTranslation = numericAttributeFn.create("outTranslateX", "tx", MFnNumericData::kDouble);
-	/*
-	as_outTx = numericAttributeFn.create("outTranslateX", "outTx", MFnNumericData::kDouble);
-	as_outTy = numericAttributeFn.create("outTranslateY", "outTy", MFnNumericData::kDouble);
-	as_outTz = numericAttributeFn.create("outTranslateZ", "outTz", MFnNumericData::kDouble);
-
-	as_outTranslation = numericAttributeFn.create("outTranslate", "outTranslate", as_tx, as_ty, as_tz);
-	addAttribute(as_outTranslation);
 	
-	*/
 	// ATTRIBUTE AFFECTS
 	attributeAffects(as_vertexHandle, outputGeom);
 	attributeAffects(as_radius, outputGeom);
@@ -362,5 +264,23 @@ double asSurfaceSliding::smoothStep(double value, double edge0, double edge1)
 	}
 	value = clamp((edge1-value) / edge1 , 0.1, 1.0);
 	return value*value*(3-(2*value));
+
+}
+
+MVector asSurfaceSliding::displacementVector(MVector startPose, MVector transformation, MPoint vertexPoz, MVector vertexNormal)
+{
+	double mp, d;
+	MVector dTransform, displaceVect, qPositionVect;
+	dTransform = transformation - startPose;
+	dTransform = vertexPoz + dTransform;
+	mp = dTransform * vertexNormal;
+	d = MVector(vertexPoz) * vertexNormal;
+	//MVector qPositionVect, displaceVect;
+
+	qPositionVect = dTransform + (d - mp)*vertexNormal;
+	displaceVect = qPositionVect - vertexPoz;
+
+	return displaceVect;
+
 
 }

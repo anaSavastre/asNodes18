@@ -1,6 +1,6 @@
 #pragma once
-#ifndef ASSURFACESLIDING_H
-#define ASSURFACESLIDING_H
+#ifndef ASSLIDINGSKINNING_H
+#define ASSLIDINGSKINNING_H
 
 
 // Deformer Classes
@@ -20,6 +20,7 @@
 #include <maya/MPointArray.h>
 #include <maya/MPlane.h>
 #include <maya/MFloatVectorArray.h>
+#include <maya/MItMeshVertex.h>
 #include <math.h>
 
 
@@ -28,9 +29,10 @@
 #include <maya/MFnMatrixAttribute.h>
 
 
-class asSurfaceSliding : public MPxDeformerNode {
+
+class asSlidingSkinning : public MPxDeformerNode {
 public:
-	asSurfaceSliding() {};
+	asSlidingSkinning() {};
 	virtual MStatus deform(MDataBlock&, MItGeometry&, const MMatrix&, unsigned int);
 	static void* nodeCreator();
 	static MStatus nodeInitializer();
@@ -48,20 +50,12 @@ public:
 private:
 	// ATTRIBUTES
 	// Temporary attr
-	static MObject as_vertexHandle;
-	static MObject as_radius;
-	static MObject as_displacement;
-	static MObject as_elasticity;
-	static MObject as_transformation;
-	static MObject as_tx;
-	static MObject as_ty;
-	static MObject as_tz;
-	static MObject as_inWorldMatrix;
+	static MObject as_strength;
+	static MObject as_iterations;
+	static MObject as_steps;
 	static int as_restPoseEvaluated;
-	double clamp(double, double, double);
-	double smoothStep(double, double, double);
-	MVector displacementVector(MVector startPose, MVector inTransformation, MPoint vertexPoz, MVector vertexNormal);
-
+	MObject getInputMesh(MDataBlock&, unsigned int);
+	MPoint averageVertex(int pointIndex, MItMeshVertex, MPointArray);
 
 };
 #endif

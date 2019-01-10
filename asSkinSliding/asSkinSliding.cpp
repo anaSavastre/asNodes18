@@ -107,12 +107,6 @@ MStatus asSkinSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterator,
 		prevPosition = restPose;
 		as_restPoseEvaluated = 1;
 	}
-	/*
-	if (animControl.isPlaying())
-	{
-		
-	}
-	*/
 
 	// Simulation
 	// VTX current position

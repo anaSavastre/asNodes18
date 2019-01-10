@@ -53,9 +53,14 @@ private:
 	static MObject as_strength;
 	static MObject as_iterations;
 	static MObject as_steps;
+	static MObject as_elasticity;
 	static int as_restPoseEvaluated;
 	MObject getInputMesh(MDataBlock&, unsigned int);
 	MPoint averageVertex(int pointIndex, MItMeshVertex, MPointArray);
+	double clamp(double, double, double);
+	double smoothStep(double, double, double);
+	MVector displacementVector(MVector startPose, MVector inTransformation, MPoint vertexPoz, MVector vertexNormal);
+
 
 };
 #endif

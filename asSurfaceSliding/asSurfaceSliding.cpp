@@ -96,14 +96,17 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 		// Calculating u tangent
 		MVector tg1 = vertexNormals[i] ^ MVector(0, 1, 0);
 		MVector tg2 = vertexNormals[i] ^ MVector(0, 0, 1);
+		cerr << "vtx Normal: " << vertexNormals[i].x << " " << vertexNormals[i].y << " " << vertexNormals[i].z << "\n";
 		// Checking if the normal is different than the arbitray chosen vects
 		if (tg1 != MVector(0, 0, 0))
 		{
 			uTangents.append(tg1);
+			cerr << "uTangents : " << uTangents[i].x << " " << uTangents[i].y << " " << uTangents[i].z << "\n";
 		}
 		else
 		{
 			uTangents.append(tg2);
+			cerr << "uTangents : " << uTangents[i].x << " " << uTangents[i].y << " " << uTangents[i].z << "\n";
 		}
 
 		vTangents.append(vertexNormals[i] ^ uTangents[i]);
@@ -166,9 +169,8 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 			// GET U AND V COMPONENTS
 			// POJECT DISPLACEMENT VECT ON U AND V
 			uCoef = displaceVect.length()*cos(displaceVect.angle(uTangents[pGeoIterator.index()]));
-
 			vCoef = displaceVect.length()*cos(displaceVect.angle(vTangents[pGeoIterator.index()]));
-			//pointPosition += MPoint(displaceVect) + (pointPosition-meshVertex[vertexHandle]);
+			
 			pointPosition +=  ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope*displacement;
 
 		}
@@ -271,14 +273,20 @@ MVector asSurfaceSliding::displacementVector(MVector startPose, MVector transfor
 {
 	double mp, d;
 	MVector dTransform, displaceVect, qPositionVect;
+
 	dTransform = transformation - startPose;
 	dTransform = vertexPoz + dTransform;
+	//cerr << "dTransform: " << dTransform.x << " " << dTransform.y << " " << dTransform.z << "\n ";
+	//cerr << "vertexNormal: " << vertexNormal.x << " " << vertexNormal.y << " " << vertexNormal.z << "\n ";
 	mp = dTransform * vertexNormal;
+	//cerr << "mp: " << mp << "\n";
 	d = MVector(vertexPoz) * vertexNormal;
 	//MVector qPositionVect, displaceVect;
 
 	qPositionVect = dTransform + (d - mp)*vertexNormal;
 	displaceVect = qPositionVect - vertexPoz;
+	
+
 
 	return displaceVect;
 

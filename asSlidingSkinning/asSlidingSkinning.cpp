@@ -98,9 +98,9 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 		// GETTING REST VERTEX
 		for (int i = 0; i < numVertex; i++)
 		{
-			restVertexArray[i] = meshVertex[i];
+			restVertexArray[i] = allPoints[i];
 
-			previousVertexArray[i] = meshVertex[i];
+			previousVertexArray[i] = allPoints[i];
 		}
 	}
 
@@ -120,6 +120,7 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 	for (unsigned int i = 0; i < vertexNormals.length(); i++)
 	{
 		// Calculating u tangent
+		
 		MVector tg1 = vertexNormals[i] ^ MVector(0, 1, 0);
 		MVector tg2 = vertexNormals[i] ^ MVector(0, 0, 1);
 		// Checking if the normal is different than the arbitray chosen vects
@@ -138,10 +139,38 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 	// GET TRANSFORM PROJECTION ON SURFACE
 	// Calculate displacement for vtxHandle
 
-	MVector displaceVect = displacementVector(startPose, inTransformation, meshVertex[vertexHandle], vertexNormals[vertexHandle]);
+	MVector displaceVect = displacementVector(startPose, inTransformation, allPoints[vertexHandle], vertexNormals[vertexHandle]);
 
 
 	// COMPUTE DEFORMATION
+	for (int index = 0; index < numVert; index++)
+	{
+		// CURRENT WEIGHT 
+		////////////////////
+
+
+
+		// CURRENT POINT
+		MPoint vertexHandleDisplacement = allPoints[index];
+
+		//////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////////////		VERTEX HANDLE DISPLACEMENT		//////////////////////////
+
+		if (vertexHandleDisplacement.distanceTo(allPoints[vertexHandle]) <= radius)
+		{
+			double falloff, uCoef, vCoef;
+			falloff = smoothStep(vertexHandleDisplacement.distanceTo(allPoints[vertexHandle]), 0.0, radius);
+			// GET U AND V COMPONENTS
+			// POJECT DISPLACEMENT VECT ON U AND V
+			uCoef = displaceVect.length()*cos(displaceVect.angle(uTangents[index]));
+			vCoef = displaceVect.length()*cos(displaceVect.angle(vTangents[index]));
+			vertexHandleDisplacement += ((vCoef*vTangents[index].normal()) + (uCoef*uTangents[index].normal()))*falloff*inputEnvelope*displacement;
+		}
+		allPoints[index] = vertexHandleDisplacement;
+
+		//////////////////////////		VERTEX HANDLE DISPLACEMENT		//////////////////////////
+		//////////////////////////////////////////////////////////////////////////////////////////
+	}
 	for (int i = 0; i < inSimulationIterations; i++)
 	{
 		for (int step = 0; step < inSteps; step++)
@@ -155,27 +184,7 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 				////////////////////
 
 				// CURRENT POINT
-				MPoint pointPosition = allPoints[index], vertexHandleDisplacement = allPoints[index];
-
-				//////////////////////////////////////////////////////////////////////////////////////////
-				//////////////////////////		VERTEX HANDLE DISPLACEMENT		//////////////////////////
-
-				if (vertexHandleDisplacement.distanceTo(meshVertex[vertexHandle]) <= radius)
-				{
-					double falloff, uCoef, vCoef;
-					falloff = smoothStep(vertexHandleDisplacement.distanceTo(meshVertex[vertexHandle]), 0.0, radius);
-					// GET U AND V COMPONENTS
-					// POJECT DISPLACEMENT VECT ON U AND V
-					uCoef = displaceVect.length()*cos(displaceVect.angle(uTangents[pGeoIterator.index()]));
-
-					vCoef = displaceVect.length()*cos(displaceVect.angle(vTangents[pGeoIterator.index()]));
-					//pointPosition += MPoint(displaceVect) + (pointPosition-meshVertex[vertexHandle]);
-					vertexHandleDisplacement += ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope*displacement;
-
-				}
-				//////////////////////////		VERTEX HANDLE DISPLACEMENT		//////////////////////////
-				//////////////////////////////////////////////////////////////////////////////////////////
-
+				MPoint pointPosition = allPoints[index];
 
 				//////////////////////////////////////////////////////////////////////////////////////////
 				////////////////////////////////	PREDICTED POSITION	 /////////////////////////////////
@@ -226,10 +235,10 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 
 						// UPDATING VERTEX FORCE
 						vertexForce += direction * elasticForce;
-						
+
 
 					}
-					
+
 				}
 				////////////////////////////////	EDGE RESISTANCE FORCE	//////////////////////////////
 				//////////////////////////////////////////////////////////////////////////////////////////
@@ -238,18 +247,17 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 				// COMPUTE NEW COMPONENT POSITION
 				if (vertexForce != MVector(0, 0, 0))
 				{
-					vertexForce = vertexForce / connectingEdges.length();
+					vertexForce = vertexForce * inStrength;// / connectingEdges.length();
 					predictedPosition = allPoints[index] + vertexForce;
 					MPoint offset_pos;
 					offset_pos = (predictedPosition - pointPosition) * inputEnvelope;
 					newMeshVertex[index] = pointPosition + offset_pos / (inSteps - step);
-					
+
 				}
 
 				////////////////////////////////	PREDICTED POSITION	  ////////////////////////////////
-				//////////////////////////////////////////////////////////////////////////////////////////				
-				newMeshVertex[index] = vertexHandleDisplacement;
-				cerr << "----------> VERTEX HANDLE DISPLACEMENT:  " << vertexHandleDisplacement.x << " " << vertexHandleDisplacement.y << " " << vertexHandleDisplacement.z << "\n ";
+				//////////////////////////////////////////////////////////////////////////////////////////	
+
 			}
 			// UPDATE POSITION
 			allPoints.copy(newMeshVertex);
@@ -258,6 +266,8 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 		}
 
 	}
+
+	
 	pGeoIterator.setAllPositions(allPoints);
 	//restEdgeLength.copy(currentEdgeLength);
 
@@ -365,26 +375,20 @@ MPoint asSlidingSkinning::averageVertex(int pointIndex, MItMeshVertex vtxIter, M
 {
 	// GET INDEX
 	int prevVertex;
-	//cerr << "vert: " << pointIndex;
-	//prevVertex = new int[1];
-	//cerr << "====================================> vtxIter.setIndex(pointIndex, prevVertex);\n";
 	vtxIter.setIndex(pointIndex, prevVertex);
 	
 	// GET CONNECTION VTX
 	MIntArray connectingVerts;
 
 	vtxIter.getConnectedVertices(connectingVerts);
-	//cerr << "====================================> vtxIter.getConnectedVertices(connectingVerts);\n";
 
 
 	// GET ADD ALL POSITIONS
 	MPoint sumPoint = MPoint(1.0, 1.0, 1.0, 1.0);
 	for (int i = 0; i < connectingVerts.length(); i++)
 	{
-
 		sumPoint += pointArray[connectingVerts[i]];
-		//cerr << "====================================> sumPoint += pointArray[connectingVerts[i]];\n";
-		//cerr << "index: " << i << "\n";
+
 	}
 
 	// RETURN AVERAGE
@@ -422,14 +426,23 @@ MVector asSlidingSkinning::displacementVector(MVector startPose, MVector transfo
 {
 	double mp, d;
 	MVector dTransform, displaceVect, qPositionVect;
+
+
 	dTransform = transformation - startPose;
 	dTransform = vertexPoz + dTransform;
+	//cerr << "dTransform: " << dTransform.x << " " << dTransform.y << " " << dTransform.z << "\n ";
+	//cerr << "vertexNormal: " << vertexNormal.x << " " << vertexNormal.y << " " << vertexNormal.z << "\n ";
 	mp = dTransform * vertexNormal;
+	//cerr << "mp: " << mp << "\n";
 	d = MVector(vertexPoz) * vertexNormal;
+	//cerr << "d: " << d << "\n";
 	//MVector qPositionVect, displaceVect;
 
 	qPositionVect = dTransform + (d - mp)*vertexNormal;
+	//cerr << "qPositionVect: " << qPositionVect.x << " " << qPositionVect.y << " " << qPositionVect.z << "\n ";
 	displaceVect = qPositionVect - vertexPoz;
+	//cerr << "displaceVect: " << displaceVect.x << " " << displaceVect.y << " " << displaceVect.z << "\n ";
+
 
 	return displaceVect;
 

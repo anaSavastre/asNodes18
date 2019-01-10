@@ -8,6 +8,15 @@ MObject asSlidingSkinning::as_iterations;
 MObject asSlidingSkinning::as_steps;
 MObject asSlidingSkinning::as_strength;
 MObject asSlidingSkinning::as_elasticity;
+MObject asSlidingSkinning::as_vertexHandle;
+MObject asSlidingSkinning::as_radius;
+MObject asSlidingSkinning::as_displacement;
+
+MObject asSlidingSkinning::as_transformation;
+MObject asSlidingSkinning::as_tx;
+MObject asSlidingSkinning::as_ty;
+MObject asSlidingSkinning::as_tz;
+
 //MItMeshVertex asSlidingSkinning::as_vertexIterator;
 
 int asSlidingSkinning::as_restPoseEvaluated;
@@ -31,16 +40,18 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 	if (status != MS::kSuccess) return status;
 	double inElasticity = pDataBlock.inputValue(as_elasticity, &status).asDouble();
 	if (status != MS::kSuccess) return status;
-
+	int vertexHandle = pDataBlock.inputValue(as_vertexHandle, &status).asInt();
+	if (status != MS::kSuccess) return status;
+	float radius = pDataBlock.inputValue(as_radius, &status).asFloat();
+	if (status != MS::kSuccess) return status;
+	float displacement = pDataBlock.inputValue(as_displacement, &status).asFloat();
+	if (status != MS::kSuccess) return status;
+	MVector inTransformation = pDataBlock.inputValue(as_transformation).asVector();
+	if (status != MS::kSuccess) return status;
+	
 	// GETTING INPUT MESH
-	MArrayDataHandle inputMeshHandle = pDataBlock.outputArrayValue(input, &status);
-	inputMeshHandle.jumpToElement(0);
-	MDataHandle inputMeshElementHandle = inputMeshHandle.outputValue(&status);
-	MDataHandle inputMeshGeomHandle = inputMeshElementHandle.child(outputGeom);
-	MObject inputMeshObj = inputMeshGeomHandle.data();
+	MObject inputMeshObj = getInputMesh(pDataBlock, intGeometryIndex);
 	MFnMesh fnInputMesh(inputMeshObj, &status);
-	/*MObject inputMeshObj = getInputMesh(pDataBlock, intGeometryIndex);
-	MFnMesh fnInputMesh(inputMeshObj, &status);*/
 	if (status != MS::kSuccess) return status;
 
 	// GETTING VERTEX MESH ITERATOR
@@ -68,9 +79,11 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 
 	// INITIALIZATION
 	// STAGE THAT IS COMPUTED JUST ON THE FIST EXECUTION OF THE DEFORMER
+	MVector startPose, dTransform;
 	if (as_restPoseEvaluated == 0)
 	{
 		as_restPoseEvaluated = 1;
+		startPose = inTransformation;
 		// GETTING REST EDGE LENGTH
 		for (int i = 0; i < numEdges; i++)
 		{
@@ -91,6 +104,43 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 		}
 	}
 
+
+	// GET POINT TANGENTS
+	// Normals
+	MFloatVectorArray uTangents, vTangents, vertexNormals;
+	status = fnInputMesh.getVertexNormals(true, vertexNormals, MSpace::kObject);
+	if (!status)
+	{
+		MGlobal::displayError("Failed to get normals");
+		return MStatus::kFailure;
+
+	}
+
+	// U and V Tangents
+	for (unsigned int i = 0; i < vertexNormals.length(); i++)
+	{
+		// Calculating u tangent
+		MVector tg1 = vertexNormals[i] ^ MVector(0, 1, 0);
+		MVector tg2 = vertexNormals[i] ^ MVector(0, 0, 1);
+		// Checking if the normal is different than the arbitray chosen vects
+		if (tg1 != MVector(0, 0, 0))
+		{
+			uTangents.append(tg1);
+		}
+		else
+		{
+			uTangents.append(tg2);
+		}
+
+		vTangents.append(vertexNormals[i] ^ uTangents[i]);
+	}
+
+	// GET TRANSFORM PROJECTION ON SURFACE
+	// Calculate displacement for vtxHandle
+
+	MVector displaceVect = displacementVector(startPose, inTransformation, meshVertex[vertexHandle], vertexNormals[vertexHandle]);
+
+
 	// COMPUTE DEFORMATION
 	for (int i = 0; i < inSimulationIterations; i++)
 	{
@@ -105,13 +155,34 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 				////////////////////
 
 				// CURRENT POINT
-				MPoint pointPosition = allPoints[index];
-				////////////////////////////////////////////////////////////////////////////////
-				////////////////////////////	PREDICTED POSITION	////////////////////////////
+				MPoint pointPosition = allPoints[index], vertexHandleDisplacement = allPoints[index];
+
+				//////////////////////////////////////////////////////////////////////////////////////////
+				//////////////////////////		VERTEX HANDLE DISPLACEMENT		//////////////////////////
+
+				if (vertexHandleDisplacement.distanceTo(meshVertex[vertexHandle]) <= radius)
+				{
+					double falloff, uCoef, vCoef;
+					falloff = smoothStep(vertexHandleDisplacement.distanceTo(meshVertex[vertexHandle]), 0.0, radius);
+					// GET U AND V COMPONENTS
+					// POJECT DISPLACEMENT VECT ON U AND V
+					uCoef = displaceVect.length()*cos(displaceVect.angle(uTangents[pGeoIterator.index()]));
+
+					vCoef = displaceVect.length()*cos(displaceVect.angle(vTangents[pGeoIterator.index()]));
+					//pointPosition += MPoint(displaceVect) + (pointPosition-meshVertex[vertexHandle]);
+					vertexHandleDisplacement += ((vCoef*vTangents[pGeoIterator.index()].normal()) + (uCoef*uTangents[pGeoIterator.index()].normal()))*falloff*inputEnvelope*displacement;
+
+				}
+				//////////////////////////		VERTEX HANDLE DISPLACEMENT		//////////////////////////
+				//////////////////////////////////////////////////////////////////////////////////////////
+
+
+				//////////////////////////////////////////////////////////////////////////////////////////
+				////////////////////////////////	PREDICTED POSITION	 /////////////////////////////////
 				MPoint predictedPosition;
 
-
-				///////////////////////		EDGE RESISTANCE FORCE	///////////////////////
+				//////////////////////////////////////////////////////////////////////////////////////////
+				////////////////////////////////	EDGE RESISTANCE FORCE	//////////////////////////////
 				// SET INDEX: for meshVertexIterator
 				int prevVertex;
 				meshVertIt.setIndex(index, prevVertex);
@@ -140,6 +211,7 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 						double elasticForce = inElasticity * deltaLen *0.5;
 						int endPointIndex;
 						MVector direction;
+
 						// CHECKING WHICH OF THE POINTS FORMING THE EDGE IS NOT THE CURRENT VERTEX
 						if (vertID[0] != index)
 						{
@@ -157,30 +229,27 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 						
 
 					}
+					
 				}
-				///////////////////////		EDGE RESISTANCE FORCE	///////////////////////
+				////////////////////////////////	EDGE RESISTANCE FORCE	//////////////////////////////
+				//////////////////////////////////////////////////////////////////////////////////////////
 
-				///////////////////////		VERTEX DISPLACEMENT		///////////////////////
-				MVector displacementForce;
-				if (allPoints[index] != restVertexArray[index])
-				{
-					displacementForce = allPoints[index] - restVertexArray[index];
-				}
-				predictedPosition = allPoints[index] + vertexForce;
-
-				////////////////////////////	PREDICTED POSITION	////////////////////////////
-				////////////////////////////////////////////////////////////////////////////////
 
 				// COMPUTE NEW COMPONENT POSITION
 				if (vertexForce != MVector(0, 0, 0))
 				{
+					vertexForce = vertexForce / connectingEdges.length();
+					predictedPosition = allPoints[index] + vertexForce;
 					MPoint offset_pos;
-					offset_pos = (predictedPosition - pointPosition) * inputEnvelope * inStrength;
+					offset_pos = (predictedPosition - pointPosition) * inputEnvelope;
 					newMeshVertex[index] = pointPosition + offset_pos / (inSteps - step);
+					
 				}
 
-				
-
+				////////////////////////////////	PREDICTED POSITION	  ////////////////////////////////
+				//////////////////////////////////////////////////////////////////////////////////////////				
+				newMeshVertex[index] = vertexHandleDisplacement;
+				cerr << "----------> VERTEX HANDLE DISPLACEMENT:  " << vertexHandleDisplacement.x << " " << vertexHandleDisplacement.y << " " << vertexHandleDisplacement.z << "\n ";
 			}
 			// UPDATE POSITION
 			allPoints.copy(newMeshVertex);
@@ -211,18 +280,18 @@ MStatus asSlidingSkinning::nodeInitializer()
 
 
 	// INPUTS
-	// vtxHandle
+	// Strength
 	as_strength = numericAttributeFn.create("strength", "strength", MFnNumericData::kDouble, 0.5);
 	numericAttributeFn.setKeyable(1);
 	numericAttributeFn.setMin(0.0);
 	//numericAttributeFn.setMax(1.0);
 	addAttribute(as_strength);
-	// Radius
+	// Iterations
 	as_iterations = numericAttributeFn.create("simulationIterations", "itr", MFnNumericData::kInt, 1);
 	numericAttributeFn.setMin(0.0);
 	numericAttributeFn.setKeyable(1);
 	addAttribute(as_iterations);
-	// Elasticuty
+	// Steps
 	as_steps = numericAttributeFn.create("steps", "stp", MFnNumericData::kInt, 3);
 	numericAttributeFn.setMin(0.0);
 	//numericAttributeFn.setMax(1.0);
@@ -235,12 +304,48 @@ MStatus asSlidingSkinning::nodeInitializer()
 	numericAttributeFn.setKeyable(1);
 	addAttribute(as_elasticity);
 
+	// vtxHandle
+	as_vertexHandle = numericAttributeFn.create("vertexId", "vtx", MFnNumericData::kInt, 0);
+	numericAttributeFn.setMin(0.0);
+	numericAttributeFn.setKeyable(1);
+	addAttribute(as_vertexHandle);
+	// Radius
+	as_radius = numericAttributeFn.create("radius", "radius", MFnNumericData::kFloat, 0);
+	//numericAttributeFn.setMin(0.0);
+	//numericAttributeFn.setMax(10.0);
+	numericAttributeFn.setKeyable(1);
+	addAttribute(as_radius);
+	// Elasticuty
+	as_elasticity = numericAttributeFn.create("elasticity", "elasticity", MFnNumericData::kFloat, 0);
+	numericAttributeFn.setMin(0.0);
+	numericAttributeFn.setMax(1.0);
+	numericAttributeFn.setKeyable(1);
+	addAttribute(as_elasticity);
+	// Displacement
+	as_displacement = numericAttributeFn.create("displacement", "disp", MFnNumericData::kFloat, 1);
+	numericAttributeFn.setMin(0.0);
+	numericAttributeFn.setMax(10.0);
+	numericAttributeFn.setKeyable(1);
+	addAttribute(as_displacement);
+	// Transformationm_tx = numericAttributeFn.create("outTranslateX", "tx", MFnNumericData::kDouble);
+	as_tx = numericAttributeFn.create("translateX", "tx", MFnNumericData::kDouble);
+	as_ty = numericAttributeFn.create("translateY", "ty", MFnNumericData::kDouble);
+	as_tz = numericAttributeFn.create("translateZ", "tz", MFnNumericData::kDouble);
+
+	as_transformation = numericAttributeFn.create("translate", "translate", as_tx, as_ty, as_tz);
+	addAttribute(as_transformation);
+
+
 	// ATTRIBUTE AFFECTS
 	attributeAffects(as_strength, outputGeom);
 	attributeAffects(as_iterations, outputGeom);
 	attributeAffects(as_steps, outputGeom);
 	attributeAffects(as_elasticity, outputGeom);
-	
+	attributeAffects(as_vertexHandle, outputGeom);
+	attributeAffects(as_radius, outputGeom);
+	attributeAffects(as_elasticity, outputGeom);
+	attributeAffects(as_displacement, outputGeom);
+	attributeAffects(as_transformation, outputGeom);	
 	return MStatus::kSuccess;
 }
 MObject asSlidingSkinning::getInputMesh(MDataBlock& pDataBlock, unsigned int intGeometryIndex)

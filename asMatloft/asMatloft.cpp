@@ -4,12 +4,12 @@
 MTypeId asMatloft::id(0x09742);
 
 MObject asMatloft::as_inWorldMatrix;
-MObject asMatloft::as_inRevolveX;
-MObject asMatloft::as_inRevolveY;
-MObject asMatloft::as_inRevolveZ;
-MObject asMatloft::as_inRevolveNegativeX;
-MObject asMatloft::as_inRevolveNegativeY;
-MObject asMatloft::as_inRevolveNegativeZ;
+MObject asMatloft::as_inRevolveVector;
+MObject asMatloft::as_inRevolveVectorX;
+MObject asMatloft::as_inRevolveVectorY;
+MObject asMatloft::as_inRevolveVectorZ;
+MObject asMatloft::as_inWidthOffset;
+
 MObject asMatloft::as_spams; 
 
 MObject asMatloft::as_outSurface;
@@ -24,16 +24,11 @@ MStatus asMatloft::compute(const MPlug& pPlug, MDataBlock& pDataBlock)
 		MArrayDataHandle inMatrixArray = pDataBlock.inputArrayValue(as_inWorldMatrix, &stat);
 		// int Spams
 		int spams = pDataBlock.inputValue(as_spams).asInt();
-		//bool inPercentage = pDataBlock.inputValue(m_percentage).asBool();
-		bool revolveX = pDataBlock.inputValue(as_inRevolveX).asBool();
-		bool revolveY = pDataBlock.inputValue(as_inRevolveY).asBool();
-		bool revolveZ = pDataBlock.inputValue(as_inRevolveZ).asBool();
-		bool revolveNegativeX = pDataBlock.inputValue(as_inRevolveNegativeX).asBool();
-		bool revolveNegativeY = pDataBlock.inputValue(as_inRevolveNegativeY).asBool();
-		bool revolveNegativeZ = pDataBlock.inputValue(as_inRevolveNegativeZ).asBool();
+		MVector inRevolveVector = pDataBlock.inputValue(as_inRevolveVector).asVector();
 		MFnNurbsSurfaceData surfaceData;
 		MObject newSurfaceData = surfaceData.create(&stat);
-		matloft(inMatrixArray, newSurfaceData, stat, revolveX, revolveY, revolveZ, revolveNegativeX, revolveNegativeY, revolveNegativeZ);
+		float widthOffset = pDataBlock.inputValue(as_inWidthOffset).asFloat();
+		matloft(inMatrixArray, newSurfaceData, stat, inRevolveVector, widthOffset);
 		
 		if (!stat)
 			return stat;
@@ -49,36 +44,28 @@ MStatus asMatloft::nodeInitializer()
 {
 	MFnNurbsSurface nurbsSurfaceFn;
 	MFnTypedAttribute typedAttributeFn;
-	MFnMatrixAttribute matrixAttributeFN;
-	MFnNumericAttribute numericAttributeFN;
+	MFnMatrixAttribute matrixAttributeFn;
+	MFnNumericAttribute numericAttributeFn;
 
 	// Attribute: inWorldMatrix	
-	as_inWorldMatrix = matrixAttributeFN.create("inputMatrix", "inM",MFnMatrixAttribute::kDouble, 0);
-	matrixAttributeFN.setArray(true);
+	as_inWorldMatrix = matrixAttributeFn.create("inputMatrix", "inM",MFnMatrixAttribute::kDouble, 0);
+	matrixAttributeFn.setArray(true);
 	addAttribute(as_inWorldMatrix);
 
 	// Attribute: spams
-	as_spams = numericAttributeFN.create("spams", "spams", MFnNumericData::kInt);
+	as_spams = numericAttributeFn.create("spams", "spams", MFnNumericData::kInt);
 	addAttribute(as_spams);
-	// Attribute: inRevolveX
-	as_inRevolveX = numericAttributeFN.create("revolveX", "rX", MFnNumericData::kBoolean);
-	addAttribute(as_inRevolveX);
-	// Attribute: inRevolveNegativeX
-	as_inRevolveNegativeX = numericAttributeFN.create("revolveNegativeX", "rnX", MFnNumericData::kBoolean);
-	addAttribute(as_inRevolveNegativeX);
-	// Attribute: inRevolveY
-	as_inRevolveY = numericAttributeFN.create("revolveY", "rY", MFnNumericData::kBoolean);
-	addAttribute(as_inRevolveY);
-	// Attribute: inRevolveY
-	as_inRevolveNegativeY = numericAttributeFN.create("revolveNegativeY", "rnY", MFnNumericData::kBoolean);
-	addAttribute(as_inRevolveNegativeY);
-	// Attribute: inRevolveZ
-	as_inRevolveZ = numericAttributeFN.create("revolveZ", "rZ", MFnNumericData::kBoolean, 1);
-	addAttribute(as_inRevolveZ); 
-	// Attribute: inRevolveZ
-	as_inRevolveNegativeZ = numericAttributeFN.create("revolveNegativeZ", "rnZ", MFnNumericData::kBoolean);
-	addAttribute(as_inRevolveNegativeZ);
-
+	// Attribute: widthOffset
+	as_inWidthOffset = numericAttributeFn.create("widthOffset", "wo", MFnNumericData::kFloat, 1);
+	numericAttributeFn.setMin(0.01);
+	addAttribute(as_inWidthOffset);
+	// Attribute: revolveVector
+	as_inRevolveVectorX = numericAttributeFn.create("revolveVectorX", "revX", MFnNumericData::kDouble, 0);
+	as_inRevolveVectorY = numericAttributeFn.create("revolveVectorY", "revY", MFnNumericData::kDouble, 0);
+	as_inRevolveVectorZ = numericAttributeFn.create("revolveVectorZ", "revZ", MFnNumericData::kDouble, 1);
+	as_inRevolveVector = numericAttributeFn.create("revolveVector", "rev", as_inRevolveVectorX, as_inRevolveVectorY, as_inRevolveVectorZ);
+	addAttribute(as_inRevolveVector);
+	
 	// Attribute: outSurface
 	as_outSurface = typedAttributeFn.create("outputSurface", "outS", MFnData::kNurbsSurface, 0);
 	addAttribute(as_outSurface);
@@ -86,22 +73,19 @@ MStatus asMatloft::nodeInitializer()
 	// Attribute Affects
 	attributeAffects(as_inWorldMatrix, as_outSurface);
 	attributeAffects(as_spams, as_outSurface);
-	attributeAffects(as_inRevolveX, as_outSurface);
-	attributeAffects(as_inRevolveY, as_outSurface);
-	attributeAffects(as_inRevolveZ, as_outSurface);
-	attributeAffects(as_inRevolveNegativeX, as_outSurface);
-	attributeAffects(as_inRevolveNegativeY, as_outSurface);
-	attributeAffects(as_inRevolveNegativeZ, as_outSurface);
-
+	attributeAffects(as_inRevolveVector, as_outSurface);
+	attributeAffects(as_inWidthOffset, as_outSurface);
+	
 	return MStatus::kSuccess;
 }
 
-MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, MStatus stat, bool revX, bool revY, bool revZ, bool revNegativeX, bool revNegativeY, bool revNegativeZ)
+MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, MStatus stat, MVector revolveVector, float widthOffset)
 {
 	MFnNurbsSurface surfFn;
 	MPointArray cvs, points;
 	MDoubleArray knotsU, knotsV;
 	MObject returnSurface;
+
 	int i, numCVs;
 	int numbElements = inMatrixArray.elementCount();
 	if (numbElements < 1)
@@ -132,34 +116,16 @@ MObject asMatloft::matloft(MArrayDataHandle inMatrixArray, MObject surfaceObj, M
 	for (i = 0; i <  spansU+3; i++)
 	{
 		
-		for (float j =- 0.5; j < 0.5; j+=0.33)
+		for (float j =- 3*widthOffset/2; j <= 3 * widthOffset / 2; j+=widthOffset)
 		{
+			// EXTRACTING VALUE MATRIX
+			inMatrixArray.jumpToElement(i);
+			MMatrix valueMatrix(inMatrixArray.inputValue(&stat).asMatrix());
 			MPoint point = points[i];
+			MVector revolve = revolveVector * valueMatrix;
+			point += (double)j * revolve;
 			//cerr << "point: " << point.x <<" "<< point.y << " " << point.z << "\n";
-			if (revX)
-			{
-				point.x += (double)j;
-			}
-			if (revY)
-			{
-				point.y += (double)j;
-			}
-			if (revZ)
-			{
-				point.z += (double)j;
-			}
-			if (revNegativeX)
-			{
-				point.x -= (double)j;
-			}
-			if (revNegativeY)
-			{
-				point.y -= (double)j;
-			}
-			if (revNegativeZ)
-			{
-				point.z -= (double)j;
-			}
+			
 			cvs.append(point);
 		}
 		
@@ -195,8 +161,7 @@ MPointArray asMatloft::getPointsFromMatrice(MArrayDataHandle inMatrixArray, MSta
 	for (i = 0; i <= numbElem; i++)
 	{
 		inMatrixArray.jumpToElement(i);
-		MDataHandle elementHandle = inMatrixArray.inputValue(&stat);
-		MMatrix valueMatrix(elementHandle.asMatrix());
+		MMatrix valueMatrix(inMatrixArray.inputValue(&stat).asMatrix());
 		// Creating point
 		MPoint point;
 		point.x = valueMatrix[3][0];

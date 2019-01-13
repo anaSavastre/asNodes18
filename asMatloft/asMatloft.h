@@ -35,20 +35,22 @@ public:
 	virtual MStatus compute(const MPlug&, MDataBlock&);
 	static void* nodeCreator();
 	static MStatus nodeInitializer();
-	static MObject matloft(MArrayDataHandle, MObject, MStatus, bool, bool, bool, bool, bool, bool);
+	static MObject matloft(MArrayDataHandle, MObject, MStatus, MVector, float);
 	static MPointArray getPointsFromMatrice(MArrayDataHandle, MStatus stat);
+	//static MPointArray getFromMatrice(MArrayDataHandle, MStatus stat);
 	static MTypeId id;
 private:
 	static MObject as_inWorldMatrix;
 	static MObject as_outSurface;
-	static MObject as_inRevolveX;
-	static MObject as_inRevolveY;
-	static MObject as_inRevolveZ;
+	static MObject as_inWidthOffset;
+	static MObject as_inRevolveVectorX;
+	static MObject as_inRevolveVectorY;
+	static MObject as_inRevolveVectorZ;
+	static MObject as_inRevolveVector;
+
 	static MObject as_spams;
 
-	static MObject as_inRevolveNegativeX;
-	static MObject as_inRevolveNegativeY;
-	static MObject as_inRevolveNegativeZ;
+	
 
 };
 #endif

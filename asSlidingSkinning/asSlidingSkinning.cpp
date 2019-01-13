@@ -141,7 +141,6 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 
 	MVector displaceVect = displacementVector(startPose, inTransformation, allPoints[vertexHandle], vertexNormals[vertexHandle]);
 
-
 	// COMPUTE DEFORMATION
 	for (int index = 0; index < numVert; index++)
 	{
@@ -171,6 +170,7 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 		//////////////////////////		VERTEX HANDLE DISPLACEMENT		//////////////////////////
 		//////////////////////////////////////////////////////////////////////////////////////////
 	}
+	
 	for (int i = 0; i < inSimulationIterations; i++)
 	{
 		for (int step = 0; step < inSteps; step++)
@@ -189,6 +189,7 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 				//////////////////////////////////////////////////////////////////////////////////////////
 				////////////////////////////////	PREDICTED POSITION	 /////////////////////////////////
 				MPoint predictedPosition;
+				MVector vertexForce = MVector(0, 0, 0);
 
 				//////////////////////////////////////////////////////////////////////////////////////////
 				////////////////////////////////	EDGE RESISTANCE FORCE	//////////////////////////////
@@ -202,7 +203,7 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 
 
 				// GET RESULTING FORCE APPLIED ON VERTEX
-				MVector vertexForce = MVector(0, 0, 0);
+				
 				for (int edge = 0; edge < connectingEdges.length(); edge++)
 				{
 					int edgeIndex = connectingEdges[edge];
@@ -211,13 +212,10 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 					fnInputMesh.getEdgeVertices(edgeIndex, vertID);
 					currentEdgeLength[edgeIndex] = allPoints[vertID[1]].distanceTo(allPoints[vertID[0]]);
 					// CALCULATING FORCE
-					if (currentEdgeLength[edgeIndex] < restEdgeLength[edgeIndex] * 0.5 || currentEdgeLength[edgeIndex] > restEdgeLength[edgeIndex] * 0.5)
+					if (currentEdgeLength[edgeIndex]!=restEdgeLength[edgeIndex])
 					{
-						/*cerr << "differenceFound \n";
-						cerr << "restEdge: " << restEdgeLength[edgeIndex]<<"\n";
-						cerr << "currentEdge: " << currentEdgeLength[edgeIndex] << "\n";*/
 						double deltaLen = currentEdgeLength[edgeIndex] - restEdgeLength[edgeIndex];
-						double elasticForce = inElasticity * deltaLen *0.5;
+						double elasticForce = inElasticity * deltaLen;
 						int endPointIndex;
 						MVector direction;
 
@@ -247,10 +245,10 @@ MStatus asSlidingSkinning::deform(MDataBlock& pDataBlock, MItGeometry& pGeoItera
 				// COMPUTE NEW COMPONENT POSITION
 				if (vertexForce != MVector(0, 0, 0))
 				{
-					vertexForce = vertexForce * inStrength;// / connectingEdges.length();
+					vertexForce = vertexForce * inputEnvelope * inStrength;// / connectingEdges.length();
 					predictedPosition = allPoints[index] + vertexForce;
 					MPoint offset_pos;
-					offset_pos = (predictedPosition - pointPosition) * inputEnvelope;
+					offset_pos = (predictedPosition - pointPosition);
 					newMeshVertex[index] = pointPosition + offset_pos / (inSteps - step);
 
 				}
@@ -325,12 +323,6 @@ MStatus asSlidingSkinning::nodeInitializer()
 	//numericAttributeFn.setMax(10.0);
 	numericAttributeFn.setKeyable(1);
 	addAttribute(as_radius);
-	// Elasticuty
-	as_elasticity = numericAttributeFn.create("elasticity", "elasticity", MFnNumericData::kFloat, 0);
-	numericAttributeFn.setMin(0.0);
-	numericAttributeFn.setMax(1.0);
-	numericAttributeFn.setKeyable(1);
-	addAttribute(as_elasticity);
 	// Displacement
 	as_displacement = numericAttributeFn.create("displacement", "disp", MFnNumericData::kFloat, 1);
 	numericAttributeFn.setMin(0.0);
@@ -411,6 +403,7 @@ double asSlidingSkinning::clamp(double value, double min, double max)
 	return value;
 
 }
+
 double asSlidingSkinning::smoothStep(double value, double edge0, double edge1)
 {
 	if (edge0 == edge1)
@@ -427,22 +420,12 @@ MVector asSlidingSkinning::displacementVector(MVector startPose, MVector transfo
 	double mp, d;
 	MVector dTransform, displaceVect, qPositionVect;
 
-
 	dTransform = transformation - startPose;
 	dTransform = vertexPoz + dTransform;
-	//cerr << "dTransform: " << dTransform.x << " " << dTransform.y << " " << dTransform.z << "\n ";
-	//cerr << "vertexNormal: " << vertexNormal.x << " " << vertexNormal.y << " " << vertexNormal.z << "\n ";
 	mp = dTransform * vertexNormal;
-	//cerr << "mp: " << mp << "\n";
 	d = MVector(vertexPoz) * vertexNormal;
-	//cerr << "d: " << d << "\n";
-	//MVector qPositionVect, displaceVect;
-
 	qPositionVect = dTransform + (d - mp)*vertexNormal;
-	//cerr << "qPositionVect: " << qPositionVect.x << " " << qPositionVect.y << " " << qPositionVect.z << "\n ";
 	displaceVect = qPositionVect - vertexPoz;
-	//cerr << "displaceVect: " << displaceVect.x << " " << displaceVect.y << " " << displaceVect.z << "\n ";
-
 
 	return displaceVect;
 

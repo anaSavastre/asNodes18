@@ -1,6 +1,6 @@
 #include "asRivet.h"
 
-//#include <cstdlib>
+#include <cstdlib>
 
 MTypeId asRivet::id(0x09940);
 
@@ -52,11 +52,20 @@ MStatus asRivet::compute(const MPlug& pPlug, MDataBlock& pDataBlock)
 		MVector inUp = pDataBlock.inputValue(m_up).asVector();
 		MMatrix parentInverseMatrix = pDataBlock.inputValue(m_parentInverseMatrix).asMatrix();
 		bool inPercentage = pDataBlock.inputValue(m_percentage).asBool();
+			   		 	  
+		// DEBUGGING PARENT INVERSE
+		for (int i = 0; i < 4; i++)
+		{
+			for (int j = 0; j < 4; j++)
+			{
+				cerr <<" " << parentInverseMatrix[i][j] << " ";
+			}
 
-
-
-
-
+			cerr << "\n";
+		}
+		cerr << "\n";
+		cerr << "\n";
+			
 
 		// OUTPUT
 		MEulerRotation eulerRotation;
@@ -115,7 +124,9 @@ MStatus asRivet::compute(const MPlug& pPlug, MDataBlock& pDataBlock)
 		MMatrix alignMatrix;
 		alignMatrix = createMatrixFromTangent(inForward, inUp);
 
+		//MTransformationMatrix transformMatrix(parentInverseMatrix*alignMatrix*aimMatrix);
 		MTransformationMatrix transformMatrix(alignMatrix*aimMatrix*parentInverseMatrix);
+
 		/// Extracting Rotation
 		//eulerRotation = aimTransformationMatrix.eulerRotation();
 		eulerRotation = transformMatrix.eulerRotation().reorder(m_rotationOrderVect[inRotationOrder]);
@@ -126,7 +137,8 @@ MStatus asRivet::compute(const MPlug& pPlug, MDataBlock& pDataBlock)
 
 		//Translation Handle
 		outTranslationHandle = pDataBlock.outputValue(m_outTranslation);
-		outTranslationHandle.setMVector(MVector(nrbS_point));
+		//outTranslationHandle.setMVector(MVector(nrbS_point)*parentInverseMatrix);
+		outTranslationHandle.setMVector(transformMatrix.getTranslation(MSpace::kWorld)+MVector(nrbS_point));
 		outTranslationHandle.setClean();
 
 		//Rotation Handle
@@ -187,50 +199,6 @@ MStatus asRivet::nodeInitializer()
 	m_up = numericAttributeFn.create("up", "up", m_upX, m_upY, m_upZ);
 	addAttribute(m_up);
 	// Parent Inverse Matrix
-
-	/*/// Line0: 00 01 02 03
-	m_pim00 = numericAttributeFn.create("parentInvMatrix00", "pim00", MFnNumericData::kDouble);
-	m_pim01 = numericAttributeFn.create("parentInvMatrix01", "pim01", MFnNumericData::kDouble);
-	m_pim02 = numericAttributeFn.create("parentInvMatrix02", "pim02", MFnNumericData::kDouble);
-	m_pim03 = numericAttributeFn.create("parentInvMatrix03", "pim03", MFnNumericData::kDouble);
-	/// Line1: 10 11 12 13
-	m_pim10 = numericAttributeFn.create("parentInvMatrix10", "pim10", MFnNumericData::kDouble);
-	m_pim11 = numericAttributeFn.create("parentInvMatrix11", "pim11", MFnNumericData::kDouble);
-	m_pim12 = numericAttributeFn.create("parentInvMatrix12", "pim12", MFnNumericData::kDouble);
-	m_pim13 = numericAttributeFn.create("parentInvMatrix13", "pim13", MFnNumericData::kDouble);
-	/// Line2: 20 21 22 23
-	m_pim20 = numericAttributeFn.create("parentInvMatrix20", "pim20", MFnNumericData::kDouble);
-	m_pim21 = numericAttributeFn.create("parentInvMatrix21", "pim21", MFnNumericData::kDouble);
-	m_pim22 = numericAttributeFn.create("parentInvMatrix22", "pim22", MFnNumericData::kDouble);
-	m_pim23 = numericAttributeFn.create("parentInvMatrix23", "pim23", MFnNumericData::kDouble);
-	/// Line3: 30 31 32 33
-	m_pim30 = numericAttributeFn.create("parentInvMatrix30", "pim30", MFnNumericData::kDouble);
-	m_pim31 = numericAttributeFn.create("parentInvMatrix31", "pim31", MFnNumericData::kDouble);
-	m_pim32 = numericAttributeFn.create("parentInvMatrix32", "pim32", MFnNumericData::kDouble);
-	m_pim33 = numericAttributeFn.create("parentInvMatrix33", "pim33", MFnNumericData::kDouble);
-	/// Parent Inverse Matrix
-	m_parentInverseMatrix = compoundAttributeFn.create("parentInverseMatrix", "pim");
-	/// Line0: 00 01 02 03
-	compoundAttributeFn.addChild(m_pim00);
-	compoundAttributeFn.addChild(m_pim01);
-	compoundAttributeFn.addChild(m_pim02);
-	compoundAttributeFn.addChild(m_pim03);
-	/// Line1: 10 11 12 13
-	compoundAttributeFn.addChild(m_pim10);
-	compoundAttributeFn.addChild(m_pim11);
-	compoundAttributeFn.addChild(m_pim12);
-	compoundAttributeFn.addChild(m_pim13);
-	/// Line2: 20 21 22 23
-	compoundAttributeFn.addChild(m_pim20);
-	compoundAttributeFn.addChild(m_pim21);
-	compoundAttributeFn.addChild(m_pim22);
-	compoundAttributeFn.addChild(m_pim23);
-	/// Line3: 30 31 32 33
-	compoundAttributeFn.addChild(m_pim30);
-	compoundAttributeFn.addChild(m_pim31);
-	compoundAttributeFn.addChild(m_pim32);
-	compoundAttributeFn.addChild(m_pim33);*/
-
 	m_parentInverseMatrix = matrixAttributeFN.create("parentInverseMatrix", "pim", MFnMatrixAttribute::kDouble);
 	addAttribute(m_parentInverseMatrix);
 

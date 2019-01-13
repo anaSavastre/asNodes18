@@ -96,17 +96,14 @@ MStatus asSurfaceSliding::deform(MDataBlock& pDataBlock, MItGeometry& pGeoIterat
 		// Calculating u tangent
 		MVector tg1 = vertexNormals[i] ^ MVector(0, 1, 0);
 		MVector tg2 = vertexNormals[i] ^ MVector(0, 0, 1);
-		cerr << "vtx Normal: " << vertexNormals[i].x << " " << vertexNormals[i].y << " " << vertexNormals[i].z << "\n";
 		// Checking if the normal is different than the arbitray chosen vects
 		if (tg1 != MVector(0, 0, 0))
 		{
 			uTangents.append(tg1);
-			cerr << "uTangents : " << uTangents[i].x << " " << uTangents[i].y << " " << uTangents[i].z << "\n";
 		}
 		else
 		{
 			uTangents.append(tg2);
-			cerr << "uTangents : " << uTangents[i].x << " " << uTangents[i].y << " " << uTangents[i].z << "\n";
 		}
 
 		vTangents.append(vertexNormals[i] ^ uTangents[i]);
@@ -276,10 +273,7 @@ MVector asSurfaceSliding::displacementVector(MVector startPose, MVector transfor
 
 	dTransform = transformation - startPose;
 	dTransform = vertexPoz + dTransform;
-	//cerr << "dTransform: " << dTransform.x << " " << dTransform.y << " " << dTransform.z << "\n ";
-	//cerr << "vertexNormal: " << vertexNormal.x << " " << vertexNormal.y << " " << vertexNormal.z << "\n ";
 	mp = dTransform * vertexNormal;
-	//cerr << "mp: " << mp << "\n";
 	d = MVector(vertexPoz) * vertexNormal;
 	//MVector qPositionVect, displaceVect;
 
